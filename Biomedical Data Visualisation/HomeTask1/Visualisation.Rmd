@@ -1,0 +1,260 @@
+---
+title: "Biomedical Data Visualisation"
+author: "Nikita Zaitsev"
+date: "2024-09-22"
+output:
+  html_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, error = FALSE, fig.width=16, fig.height=10)
+
+library(tidyverse)
+library(dplyr)
+
+```
+
+### Data reading
+
+```{r}
+hogwarts <- read_csv("data/hogwarts_2024.csv")
+
+
+hogwarts <- hogwarts %>%
+  mutate(across(c(house, sex, wandCore, bloodStatus, course, id), ~ as.factor(.x)))
+glimpse(hogwarts)
+```
+
+## Столбчатые диаграммы
+
+### Задание 1
+
+```{r}
+
+  ggplot(hogwarts)+
+  geom_bar(aes(x = course, fill = course),
+           colour = 'black')+
+  scale_fill_manual(values = c('1'= "#FFF999",
+                               '2'= "#FFF666", 
+                               '3'= "#FFF333", 
+                               '4'= "#FFF000",
+                               '5'= "#FFCC33",
+                               '6'= "#FF9900",
+                               '7'= "#FF6600"))+
+  
+  theme_classic()
+
+```
+
+### Задание 2
+
+```{r}
+
+hogwarts %>%
+  ggplot()+
+  geom_bar(aes(x = fct_infreq(house), fill = bloodStatus),
+          colour = 'black',
+          position = 'fill')+
+  scale_x_discrete(name = "House")+
+  scale_fill_discrete(name = "Blood Status")+
+  scale_y_continuous(name = "Student %")+
+  theme_classic()
+
+
+```
+
+Из полученного графика распределению студентов по факультетам и их статусу крови можно сделать вывод, что в процентном отношении самое большое количество магглорожденных студентов наблюдается на факультете Гриффиндор, что в целом очень даже объясняется их факультетскими ценностями.
+
+Если же посмотреть на процентное отношение количества чистокровных магов в каждом из факультетов, то суждение, что в Слизерине находятся только чистокровные маги, оказывается неверным. Можно заметить, что в Пуффендуе количество студентов больше, чем в Слизерине, однако чистокровных магов практически столько же в процентном отношении. Таким образом, Слизерин нельзя считать единственным факультетом для чистокровных волшебников.
+
+### Задание 3
+
+```{r}
+theme_custom <- theme(
+    axis.text = element_text(size = 20),
+    axis.title = element_text(size = 25),
+    legend.title = element_text(size = 20),
+    legend.text = element_text(size = 20)
+  )
+
+hogwarts_new <- hogwarts[hogwarts$bloodStatus == 'pure-blood' | hogwarts$bloodStatus == 'muggle-born', ]
+
+hogwarts_new %>%
+  ggplot()+
+  geom_bar(aes(x = fct_infreq(house), fill = bloodStatus),
+          colour = 'black',
+          position = 'fill')+
+  geom_hline(yintercept = 0.5,
+             linewidth = 1,
+             linetype = "dashed",
+             colour = "slateblue4")+
+  scale_x_discrete(name = "Факультет",
+                   breaks = c('Hufflepuff', 'Gryffindor', 'Slytherin', 'Ravenclaw'),
+                   labels = c('Пуффендуй', 'Гриффиндор', 'Слизерин', 'Когтевран'))+
+  scale_fill_discrete(name = "Происхождение",
+                      breaks = c('muggle-born', 'pure-blood'),
+                      labels = c('Магглорожденные', 'Чистокровные'))+
+  scale_y_continuous(name = "% студентов")+
+  theme_classic()+
+  theme_custom
+```
+
+## Боксплоты
+
+### Задание 1
+
+```{r}
+hogwarts %>%
+  ggplot()+
+    geom_boxplot(aes(x = reorder(house, week_3, decreasing = TRUE) , y = week_3))+
+  scale_x_discrete(name = 'House')+
+  scale_y_continuous(name = 'Points at week 3')+
+  theme_bw()+
+  theme_custom
+
+```
+
+### Задание 2
+
+```{r, fig.width=14, fig.height=14}
+
+
+hogwarts %>%
+  ggplot(aes(x = reorder(house, week_3, decreasing = TRUE) , y = week_3, fill = bloodStatus))+
+    geom_boxplot(notch = TRUE)+
+  scale_x_discrete(name = 'House')+
+  scale_y_continuous(name = 'Points at week 3')+
+  scale_fill_discrete(name = 'Blood status',
+                      breaks = c('half-blood', 'muggle-born' , 'pure-blood'),
+                      labels = c('Half blood', 'Muggle born', 'Pure blood'))+
+  theme_bw()+
+  theme_custom
+  
+```
+
+### Задание 3
+
+```{r, fig.width=14, fig.height=14}
+##Данный график выполнен без использования кастомной темы и bw, чтобы затем применить тему в задании №3 из "Разное"
+boxplot3 <- 
+  hogwarts %>%
+  ggplot(aes(x = reorder(house, week_3, decreasing = TRUE) , y = week_3, fill = bloodStatus))+
+  geom_boxplot(notch = TRUE, outliers = FALSE, linewidth = 0.8, width = 0.9)+
+  geom_jitter()+
+  scale_x_discrete(name = 'House')+
+  scale_y_continuous(name = 'Points at week 3')+
+  scale_fill_discrete(name = 'Blood status',
+                      breaks = c('half-blood', 'muggle-born' , 'pure-blood'),
+                      labels = c('Half blood', 'Muggle born', 'Pure blood'))+
+   labs(title = "Распределение баллов за третью неделю в зависимости от факультета и сердцевины палочки",
+       caption = "На основании датасета hogwarts")+
+  theme(
+    plot.title = element_text(size = 20, hjust = 0.5),
+    plot.caption = element_text(size = 15)
+  )+
+  theme_custom
+
+boxplot3
+```
+
+## Разное
+
+### Задание 1
+
+```{r, fig.width=14, fig.height=20}
+hogwarts %>% 
+  filter(course == 5) %>%
+  ggplot()+
+  geom_segment(aes(x = 0, 
+                   xend = result,
+                   y = reorder(id, result, decreasing = TRUE), 
+                   yend = reorder(id, result, decreasing = TRUE)))+
+  geom_point(aes(x =  result,
+                 y = reorder(id, result, decreasing = TRUE),
+                 colour = wandCore),
+             size = 3)+
+  scale_colour_manual(name = 'Wand core', 
+                      values = c("dragon heartstring"= "red",
+                               "phoenix feather"= "yellow", 
+                               "unicorn hair"= "grey"))+
+  labs(x = 'Result',
+       y = 'ID')+
+  theme_bw()+
+  theme_custom+
+  theme(axis.text.y = element_text(size = 12))
+  
+```
+
+### Задание 2
+
+```{r}
+hogwarts %>%
+  ggplot(aes(`Astronomy exam`, fill = house == 'Slytherin'))+
+  geom_histogram(color = 'black')+
+  theme_bw()+
+  scale_fill_manual(name = 'Slytherin',
+                    values = c('TRUE' = "#1F5D25",
+                               'FALSE'= "white"))+
+  labs(y = 'Number of students')+
+  theme(
+    axis.text.x = element_text(size = 18),
+    axis.text.y = element_text(size = 18),
+    legend.text = element_text(size = 18),
+    axis.title.y = element_text(size = 20),
+    legend.title = element_text(size = 20),
+    axis.title.x = element_text(size = 22)
+    )
+```
+
+### Задание 3
+
+```{r, fig.width=14, fig.height=14}
+theme_custom_new <- theme(
+    axis.text = element_text(size = 20),
+    axis.title = element_text(size = 25),
+    legend.title = element_text(size = 20),
+    legend.text = element_text(size = 20),
+    panel.background = element_rect(fill = 'white', color = 'black'),
+    panel.grid.major = element_line(colour = "gray90")
+)
+
+boxplot3 + theme_custom_new
+```
+
+## Фасетирование
+
+### Задание 1
+
+По моему мнению, для визуализации гистрограмм лучше использовать фасетирование по столбцам, так как это позволит наглядно сравнить значения разных групп данных. Например, в примере из задания фасетирование по столбцам факультетов позволяет увидеть, что баллы слизеринцев в большей мере сконцентрированы у высоких значений оценок, в отличие от других факультетов.
+
+Для визуализации violin-plot можно использовать оба способа фасетирования. Выбор зависит от конкретной задачи и структуры данных. Если нужно сравнить несколько распределений, то лучше использовать фасетирование по строкам. Если необходимо сравнить одно распределение в разных условиях, то можно выбрать фасетирование по столбцам.
+
+Общее правило сформулировать сложно, так как многое зависит от задачи визуализации. Всегда можно попробовать разные способы и посмотреть, какой из них лучше подойдет. У нас же не одна попытка)
+
+### Задание 2
+
+```{r}
+hogwarts %>%
+  ggplot()+
+  geom_histogram(aes(x = `Transfiguration exam`), fill = 'pink', color = 'black', bins = ceiling(log2(nrow(hogwarts))+1))+
+  theme_custom_new+
+  facet_grid(.~course)
+```
+
+### Задание 3
+
+```{r}
+hogwarts %>%
+  select(id, sex, `Defence against the dark arts exam`, `Herbology exam`) %>%
+  pivot_longer(!c(id, sex),
+               names_to ='Subject',
+               values_to = 'Score') %>%
+  ggplot()+
+  geom_density(aes(x = Score, fill = Subject), alpha = 0.3)+
+  scale_fill_manual(values = c("Defence against the dark arts exam" = "purple", "Herbology exam" = "lightgreen"),
+    name = "Subject",
+    labels = c("Defence against the dark arts exam", "Herbology exam"))+
+  facet_grid(sex~.)+
+  theme_custom_new
+```
