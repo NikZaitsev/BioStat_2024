@@ -1,0 +1,104 @@
+---
+title: "Untitled"
+author: "Nikita Zaitsev"
+date: "2024-10-13"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+
+```
+
+## Модель пациента: исследование прироста гемоглобина
+
+```{r pressure, echo=FALSE}
+
+values <- 0:1 # Значения, которые может принимать исход (1 - исцеление, 0 - нет)
+
+Pr <- c(0.1, 0.9)  # Распределение в генеральной совокупности - тут можно менять истинную вероятность и смотреть как будет меняться всё остальное
+
+df <- data.frame(values, Pr)
+
+ggplot(df, aes(x=values, y=Pr)) +
+  geom_point() + 
+  geom_segment(aes(x=values, xend=values, y=0, yend=Pr)) +
+  scale_x_continuous(breaks = values) +
+  theme_bw()
+
+```
+## Характеристики прироста
+
+```{r characteristics}
+
+true_pr <- sum(values*Pr) # Истинная вероятность (математическое ожидание)
+
+print(true_pr)
+
+variance <- sum((values-true_pr)^2*Pr) # Дисперсия
+
+print(variance)
+
+standard_deviation <- sqrt(variance)
+print(standard_deviation)
+
+```
+## Однократная оценка по выборке
+
+```{r sample_1}
+
+n_patients <- 100 # Количество пациентов 
+
+my_group <- sample(values, n_patients, replace = TRUE, prob = Pr) # Результаты пациентов
+
+print(my_group)
+
+sample_pr <- mean(my_group)
+
+print(sample_pr)
+
+```
+
+## Набираем статистику
+
+```{r sample_n}
+
+n_patients <- 20 # Количество добровольцев 
+
+n_repeats <- 1000 # Количество повторений эксперимента
+
+df_all_repeats <- data.frame(
+  n_exp = rep(1:n_repeats, each = n_patients),
+  ID =  rep(1:n_patients, n_repeats),
+  value = sample(values, n_patients*n_repeats, replace = TRUE, prob = Pr)
+)
+
+```
+
+## Оценка среднего в каждом эксперименте
+
+```{r estimations}
+
+df_sample_pr <- df_all_repeats %>% 
+  group_by(n_exp) %>% 
+  dplyr::summarise(pr_upd = mean(value)) %>% 
+  ungroup()
+
+ggplot(df_sample_pr, aes(x = pr_upd)) +
+  geom_histogram(color = 'black', fill = 'white', binwidth = 0.01) +
+  theme_bw()
+
+```
+
+## Количественные и качественные итоги
+
+```{r conclusions}
+
+error <- sqrt(mean((df_sample_pr$pr_upd-true_pr)^2) )
+print(error)
+
+#При увеличении количества добровольцев в выборке - ошибка в средней вероятности уменьшается
+#При увеличении истинной вероятности исцеления - ошибка средней вероятности в выборке также уменьшается
+```
