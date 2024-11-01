@@ -1,0 +1,259 @@
+---
+title: "Visualisation2"
+author: "Nikita Zaitsev"
+date: "2024-10-13"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, error = FALSE, fig.width=16, fig.height=10)
+
+library(tidyverse)
+library(ggpubr)
+```
+
+```{r}
+hogwarts <- read_csv("data/hogwarts_2024.csv")
+hogwarts %>% head()
+
+hogwarts <- hogwarts %>%
+  mutate(across(c(house, course, sex, wandCore, bloodStatus), ~ as.factor(.x)))
+
+theme_custom <- theme(
+    panel.background = element_rect(fill = "white"),
+    plot.title = element_text(size = 30, hjust = 0.5),
+    plot.subtitle = element_text(size = 25, hjust = 0.5),
+    plot.caption = element_text(size = 15),
+    strip.text = element_text(size = 20),
+    axis.text = element_text(size = 20),
+    axis.title = element_text(size = 25),
+    legend.title = element_text(size = 25),
+    legend.text = element_text(size = 20)
+  )
+
+house_colors <- c("Gryffindor" = "#C50000", 
+                  "Hufflepuff" = "#ECB939", 
+                  "Ravenclaw" = "#41A6D9", 
+                  "Slytherin" = "#1F5D25")
+```
+
+## Диаграммы рассеяния (скаттерплоты)
+
+### Задание №1
+
+```{r}
+hogwarts %>%
+  ggplot(aes(x = result, y = `Herbology exam`))+
+  geom_point()+
+  geom_smooth(se = FALSE,
+              method = 'lm',
+              color = 'red')+
+  theme_custom
+
+```
+
+**Интерпретация графика:** Можно заметить, что между данными переменными наблюдается положительная корреляция. То есть с ростом суммарного балла по всем экзаменам, растет и отдельный балл по травологии, что, собственно, и логично.
+
+### Задание №2
+
+```{r}
+hogwarts %>%
+  pivot_longer(cols = c(`Herbology exam`, `Muggle studies exam`, `Divinations exam`, `Potions exam`), names_to = "exam", values_to = 'score') %>%
+  ggplot(aes(x = result, y = score))+
+  geom_point(aes(color = house))+
+  geom_smooth(method = 'lm', se = FALSE, linewidth = 0.7)+
+  scale_color_manual(values = house_colors)+
+  theme_custom+
+  facet_wrap(exam~.)
+
+```
+
+**Интерпретация графика:** Из графика можно заметить, что три из четырех переменных (оценки за экзамен) обладают положительной корреляцией с общим баллом студента за год. Однако в распределение оценок за экзамен по зельеварению вносят свои коррективы мальчики из Слизерина, которые имеют высокие оценки наравне с девочками из Слизерина за этот экзамен, однако плохо сдали другие экзамены, чем существенно занизили себе общий балл за год.
+
+В общем, на всех 4 графиков можно заметить, что некоторые факультеты находятся выше и правее на графике, чем другие
+
+### Задание №3
+
+```{r}
+
+hogwarts %>%
+  pivot_longer(cols = c(`Herbology exam`, `Muggle studies exam`, `Divinations exam`, `Potions exam`), names_to = "exam", values_to = 'score') %>%
+  ggplot(aes(x = result, y = score))+
+  geom_point(aes(color = house))+
+  geom_smooth(aes(color = sex), method = 'lm', se = FALSE, linewidth = 0.7)+
+  scale_color_manual(values = c(house_colors, 'male' = 'cyan','female'='deeppink'))+
+  theme_custom+
+  guides(color = guide_legend(override.aes = list(size = 3)))+ #Этот момент, я честно признаюсь, подсмотрел в chatgpt, так как мне не понравился размер точек в легенде, а в базовой шпаргалке по ggplot найти не получилось
+  facet_wrap(exam~.)
+```
+
+**Интерпретация графика:** За рамками визуализации домашней работы посмотрел зависимости от всех категориальных переменных. Мне показалось, что самая интересная связь по полу учеников. Можно заметить, что кроме зельеварения у всех экзаменов однонаправленная связь между общей оценкой и результатом за конкретный экзамен по полу. Однако у зельеварения очевидно, что вклад мальчиков слизеринцев вносит отрицательную корреляцию между переменными, о чем можно сделать вывод, что данная группа студентов существенно отличается от всех остальных (о статистически значимых отличиях пока не могу сказать, не хватает мозгов и знаний с: ).
+
+## geom_col и вещи вокруг него
+
+### Задание №1
+
+```{r}
+
+hogwarts %>%
+  mutate(sem1_sum = rowSums(across('week_1':'week_17'))) %>%
+  group_by(bloodStatus) %>%
+  summarize(totalSem1Sum = sum(sem1_sum))%>%
+  ggplot()+
+  geom_col(aes(x = fct_reorder(bloodStatus, totalSem1Sum, .desc = TRUE), y = totalSem1Sum, fill = bloodStatus))+
+  labs(x = 'Blood Status', y = 'Total result for semester №1', fill = 'Blood status')+
+ theme_custom
+
+```
+
+**Интерпретация графика:** Можно заметить, что у полукровок общий результат по баллам за первый семестр значительно выше, чем у остальных групп студентов. Это может быть связано с тем, что полукровки "собирают" в себе качества как от волшебников, так и от магглов, что делает их более успешными в обучении. Вторая гипотеза состоит в том, что полукровок просто больше, чем остальных студентов. Поэтому проверим это в следующем задании.
+
+### Задание №2
+
+```{r}
+hogwarts %>%
+  mutate(sem1_sum = rowSums(across('week_1':'week_17'))) %>%
+  group_by(bloodStatus) %>%
+  summarize(totalSem1Sum = sum(sem1_sum), count = n())%>%
+  
+  ggplot()+
+  geom_col(aes(x = fct_reorder(bloodStatus, totalSem1Sum, .desc = TRUE), y = totalSem1Sum, fill = bloodStatus))+
+  labs(x = 'Blood Status', y = 'Total result for semester №1', fill = 'Blood status')+
+  theme_custom+
+  geom_label(aes(x = fct_reorder(bloodStatus, totalSem1Sum, .desc = TRUE),
+    y = totalSem1Sum, label = count), size = 10)
+```
+
+Интерпретация графика: Можно заметить, что гипотеза подтверждается данной визуализацией. Разрыв в сумме оценок по первому семестру можно объяснить количеством студентов определенной группы. Больше студентов =\> больше баллов.
+
+### Задание №3
+
+```{r}
+plot3 <- hogwarts %>%
+  mutate(sem1_sum = rowSums(across('week_1':'week_17'))) %>%
+  group_by(bloodStatus, sex) %>%
+  summarize(totalSem1Sum = sum(sem1_sum), count = n())%>%
+  mutate(`bloodstatus and sex` = paste0(bloodStatus, " & ", sex)) %>%
+  
+  ggplot()+
+  geom_col(aes(x = totalSem1Sum, y = fct_reorder(`bloodstatus and sex`, totalSem1Sum, .desc = TRUE), fill = bloodStatus))+
+  labs(x = 'Total result for semester №1', 
+       y = 'Blood status', 
+       fill = 'Blood status',
+       title = 'Распределение баллов за первый семестр обучения\nв зависимости от происхождения и пола',
+       caption = 'Цифры на графике означают количество студентов в каждой группе')+
+  theme_custom+
+  geom_label(
+    aes(y = fct_reorder(`bloodstatus and sex`, totalSem1Sum, .desc = TRUE), 
+        x = 9000, label = count),
+    size = 6,
+    label.size = 0)+
+  scale_x_continuous(breaks = seq(0, 11000, l = 12))+
+  scale_y_discrete(position = 'right')
+  
+
+plot3
+
+ggsave("bloodstatusandsexSem1results.png", plot3, width = 20, height = 15, dpi = 300, units = "in")
+```
+
+### Задание №4
+
+Функция coord_flip() производит смену переменных по осям. Например, если применить её к предыдущему графику:
+
+```{r}
+plot3 +
+  coord_flip()
+```
+
+Видим, что переменные по оси абсцисс и ординат поменялись местами. То есть график "перевернулся". Это может быть полезно в случае, если в изначальном графике нам не нравится то, как он читается (перекрываются надписи, не интуитивно понятен смысл), возможно, если его перевернуть в более интуитивно понятный вид, то читателю будет яснее, что автор хотел сказать этим графиком.
+
+Однако в данном случае получилось совсем наоборот. При переворачивании - надписи на оси Х стали совсем не читаемые.
+
+Из минусов: данная функция работает не со всеми типами графиков. Она полезна для тех типов geoms, в которых нет настройки orientation.
+
+## Разное
+
+### Задание №1
+
+```{r}
+scatter <- hogwarts %>%
+  ggplot()+
+  geom_point(aes(x = `Study of ancient runes exam`, y = `Potions exam`, color = house))+
+  scale_color_manual(values = house_colors)+
+  coord_flip()+
+  theme_custom+
+  theme(axis.title = element_text(size = 20))
+
+boxplot <- hogwarts %>%
+  pivot_longer(cols = c(`Potions exam`, `Study of ancient runes exam`), names_to = "exam", values_to = 'score') %>%
+  ggplot()+
+  geom_boxplot(aes(x = exam, y = score, fill = house))+
+  scale_fill_manual(values = house_colors)+
+  theme_custom+
+  theme (legend.position = 'top',
+         legend.title = element_text(size = 15),
+         legend.text = element_text(size = 15))
+
+hist <- hogwarts %>%
+  pivot_longer(cols = c(`Potions exam`, `Study of ancient runes exam`), names_to = "exam", values_to = 'score') %>%
+  ggplot()+
+  geom_histogram(aes(x = score, fill = exam), bins = ceiling(log2(nrow(hogwarts)) + 1), color = 'black')+
+  scale_fill_manual(values = c('Potions exam'= 'purple',
+                               'Study of ancient runes exam' = 'cyan3'))+
+  theme_custom
+
+ggarrange(plotlist = list(
+  ggarrange(plotlist = list(scatter, boxplot), ncol = 2), hist), nrow = 2
+)
+```
+
+### Задание №2
+
+```{r}
+data <- hogwarts %>%
+  select(bloodStatus, `Potions exam`) %>%
+  pivot_longer(cols = `Potions exam`, names_to = 'Potions exam', values_to = 'Score') %>%
+  group_by(bloodStatus) %>%
+  summarise(Potions_exam_mean = mean(`Score`), sd = sd(`Score`))
+
+graph1 <- data %>%
+  ggplot()+
+  geom_pointrange(aes(x = fct_relevel(bloodStatus, c("muggle-born", "pure-blood", "half-blood")), y = Potions_exam_mean,
+                      ymin = Potions_exam_mean-sd, ymax = Potions_exam_mean+sd,
+                      color = bloodStatus), show.legend = FALSE, linewidth = 1)+
+  labs(y = "Mean Potions exam result \u00b1 SD",
+       x = "Blood status")+
+  ylim(0, 100)+
+  geom_hline(yintercept = 50, linetype = 'dotdash', linewidth = 1)+
+  theme_custom
+```
+
+**Наблюдение:** Маглорожденные зарабатывают заметно меньше балло за экзамен по зельеварению, чем остальные группы студентов. Сложно сказать, что статистически значимо меньше, но сейчас не об этом)
+
+**Гипотеза:** Возможно, конкретно по данному предмету существует предвзятость преподавателя к конкретной группе студентов, а именно к маглорожденным. Можно проверить это, посмотрев распределение баллов за весь год.
+
+```{r}
+graph2 <- hogwarts %>%
+  select(bloodStatus, result) %>%
+  group_by(bloodStatus)%>%
+  summarise(Result = mean(result), sd = sd(result)) %>%
+  
+  ggplot()+
+  geom_pointrange(aes(x = fct_relevel(bloodStatus, c("muggle-born", "pure-blood", "half-blood")), y = Result,
+                      ymin = Result-sd, ymax = Result+sd,
+                      color = bloodStatus), show.legend = FALSE, linewidth = 1)+
+  geom_hline(yintercept = 50, linetype = 'dotdash', linewidth = 1)+
+  labs(y = "Mean year's resilt \u00b1 SD",
+       x = "Blood status")+
+  theme_custom
+
+ggarrange(plotlist = list(graph1, graph2))
+```
+
+**Интерпретация графика:** Как можно заметить, что среднегодовой результат по группам не особо отличается. Поэтому можно выдвинуть гипотезу, что студенты в зависимости от происхождения не отличаются по умственным способностям и косвенно подтвердить гипотезу о предвзятости преподавателя зельеварения к маглорожденным
+
+P.S. Я действительно хотел попытаться выполнить доп.задание, но посмотрев на его теоретический объем и количество оставшегося у меня времени на другие домашние задания и просмотр пропущенных мной лекций по причине отпуска - вынужден его пропустить(\
+Хотел сказать отдельное спасибо за такие продуманные и интересные домашние задания! Представляю, какого труда стоило придумать такой датасет и задания, а также какого труда в настоящий момент проверять и давать такие подробные и обширные комментарии.
+
+Спасибо!
