@@ -1,0 +1,94 @@
+---
+title: "ADMH-like"
+author: "Nikita Zaitsev"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(readxl)
+library(openxlsx)
+```
+
+```{r}
+ADSL <- read_excel("ADaM-like/ADSL.xlsx")
+ds_mh <- read_excel("SDTM/MH_MEDICALHISTORY.xlsx")
+```
+
+Так как у меня нет спецификации на домен SDTM MH, то видимо "пустые" строчки в переменной MHTERM это просто пустые строки. Видимо, дата менеджеры создали много репитов на всякий случай, поэтому отфильтрую их.
+
+```{r}
+ds_mh <- ds_mh %>%
+  filter(MHTERM != is.na(MHTERM))
+```
+
+Предлагаю сначала сделать текстовые переменные, за исключением TRTP и TRTPN, их мы добавим попозже:
+
+```{r}
+text_admh <- ds_mh %>%
+  select(STUDYID, SUBJID, MHCAT, MHTERM, MHDECOD, MHBODSYS, MHENRTPT, MHSEQ) %>%
+  filter(MHCAT == 'Medical History') %>%
+  mutate(USUBJID = paste(STUDYID, SUBJID, sep = '-')) %>%
+  mutate(MHENRF = ifelse(MHENRTPT == 'ONGOING', 'ONGOING', '')) %>%
+  select(STUDYID, USUBJID, MHCAT, MHTERM, MHDECOD, MHBODSYS, MHENRTPT, MHENRF, MHSEQ)
+
+text_admh
+```
+
+Извлекаем даты из домена MH:
+
+```{r}
+date_admh <- ds_mh %>%
+  filter(MHCAT == 'Medical History') %>%
+  select(MHSTDTC, MHENDTC, MHENRTPT) %>%
+  mutate(ASTDTF = ifelse(is.na(MHSTDTC), 'Y',
+    case_when(
+    str_length(MHSTDTC) == 4 ~ 'M',
+    str_length(MHSTDTC) == 7 ~ 'D'
+    ))) %>%
+           
+  mutate(MHSTDTC = as.Date(ifelse(str_length(MHSTDTC) == 4,
+                          str_c(MHSTDTC, '-01-01'),
+                          (ifelse(str_length(MHSTDTC) == 7,
+                          str_c(MHSTDTC, '-01'),
+                          MHSTDTC))))) %>%
+  mutate(ASTDT = format(MHSTDTC , "%d.%m.%Y")) %>%
+  mutate(AENDT = ifelse(MHENRTPT == "ONGOING", NA, MHENDTC)) %>%
+  mutate(AENDTF = ifelse(is.na(AENDT), 'Y',
+    case_when(
+    str_length(AENDT) == 4 ~ 'M',
+    str_length(AENDT) == 7 ~ 'D'
+    ))) %>%
+  select(MHSTDTC, MHENDTC, ASTDT, ASTDTF, AENDT, AENDTF)
+  
+
+date_admh
+```
+Склеим все, что получили до этого:
+
+```{r}
+preADMH <- text_admh %>% bind_cols(date_admh)
+
+preADMH
+```
+Добавим оставшиеся переменные из ADSL левым джойном, побьем тип переменной и поменяем местам:
+
+```{r}
+
+ADMH <- left_join(ADSL %>% select(USUBJID, TRTP, TRTPN), preADMH) %>%
+  filter(!is.na(MHCAT)) %>%
+  
+  mutate(across(c(STUDYID, USUBJID, TRTP, MHCAT, MHTERM, MHDECOD, MHBODSYS, ASTDT, ASTDTF, AENDT, AENDTF, MHENRTPT,MHENRF), as.character)) %>%
+  mutate(across(c(TRTPN, MHSEQ), as.numeric)) %>%
+  mutate(across(c(MHSTDTC, MHENDTC), as.Date)) %>%
+  select(STUDYID, USUBJID, TRTP, TRTPN, MHSEQ , MHCAT, MHTERM , MHDECOD , MHBODSYS, MHSTDTC, ASTDT, ASTDTF, MHENDTC, AENDT, AENDTF, MHENRTPT, MHENRF)
+
+ADMH
+
+```
+
+
+
